@@ -1,3 +1,5 @@
 key.env
 uploads/
 .myenv
+__pycache__/
+.ipynb_checkpoints/
