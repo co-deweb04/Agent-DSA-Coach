@@ -1,0 +1,10 @@
+streamlit
+psycopg2-binary
+pgvector
+langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
+sentence-transformers
+python-dotenv
+nbformat
