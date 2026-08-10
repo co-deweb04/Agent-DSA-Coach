@@ -1,6 +1,6 @@
 # DSA Coach — Arrays
 
-## 1. What is an Array?
+## 1.Array Fundamentals
 
 An array is a linear data structure that stores elements in a sequence. Each element can be accessed using an index.
 
