@@ -5,6 +5,10 @@ langchain
 langchain-community
 langchain-openai
 langchain-text-splitters
+langchain-core
+langchain-huggingface
+langchain-google-genai
+faiss-cpu
 sentence-transformers
 python-dotenv
 nbformat
