@@ -4,3 +4,4 @@ uploads/
 __pycache__/
 .ipynb_checkpoints/
 vectorstore/
+*.code-workspace
