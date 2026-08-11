@@ -1,144 +1,231 @@
 from pathlib import Path
+import json
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+
+from database import get_connection, initialize_database
+from config import EMBEDDING_MODEL
 
 
 # ==========================================
-# CONFIG
+# CONFIGURATION
 # ==========================================
 
-DATA_PATH = Path("data/arrays.md")
-VECTOR_DB_PATH = "vectorstore/faiss_index"
+DATA_PATH = Path("data/notes")
 
-EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-
-
-# ==========================================
-# 1. LOAD DOCUMENT
-# ==========================================
-
-print("Loading document...")
-
-text = DATA_PATH.read_text(
-    encoding="utf-8"
-)
-
-print(f"Characters: {len(text)}")
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 150
 
 
 # ==========================================
-# 2. CREATE LANGCHAIN DOCUMENT
+# LOAD DOCUMENTS
 # ==========================================
 
-document = Document(
-    page_content=text,
-    metadata={
-        "source": str(DATA_PATH),
-        "topic": "arrays"
-    }
-)
+def load_documents():
 
-documents = [document]
+    documents = []
 
-print(
-    f"Documents loaded: {len(documents)}"
-)
+    md_files = list(DATA_PATH.glob("*.md"))
 
+    print(f"Found {len(md_files)} markdown files.")
 
-# ==========================================
-# 3. CHUNK DOCUMENT
-# ==========================================
+    for file_path in md_files:
 
-print("\nSplitting document...")
+        print(f"Loading: {file_path}")
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=800,
-    chunk_overlap=150,
-    separators=[
-        "\n# ",
-        "\n## ",
-        "\n### ",
-        "\n\n",
-        "\n",
-        " ",
-        ""
-    ]
-)
+        text = file_path.read_text(
+            encoding="utf-8"
+        )
 
-chunks = text_splitter.split_documents(
-    documents
-)
+        document = Document(
+            page_content=text,
+            metadata={
+                "content_type": "dsa",
+                "topic": file_path.stem,
+                "source": str(file_path),
+                "file_type": "md"
+            }
+        )
 
-print(
-    f"Created {len(chunks)} chunks"
-)
+        documents.append(document)
+
+    return documents
 
 
 # ==========================================
-# 4. ADD METADATA
+# CREATE CHUNKS
 # ==========================================
 
-for i, chunk in enumerate(chunks):
+def create_chunks(documents):
 
-    chunk.metadata["chunk_id"] = i
-    chunk.metadata["topic"] = "arrays"
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        separators=[
+            "\n## ",
+            "\n### ",
+            "\n\n",
+            "\n",
+            " ",
+            ""
+        ]
+    )
 
+    chunks = splitter.split_documents(documents)
 
-# ==========================================
-# 5. LOAD EMBEDDING MODEL
-# ==========================================
+    for i, chunk in enumerate(chunks):
 
-print("\nLoading embedding model...")
+        chunk.metadata["chunk_id"] = i
 
-embeddings = HuggingFaceEmbeddings(
-    model_name=EMBEDDING_MODEL,
-    encode_kwargs={
-        "normalize_embeddings": True
-    }
-)
+    print(f"Created {len(chunks)} chunks.")
 
-print("Embedding model loaded.")
-
-
-# ==========================================
-# 6. CREATE FAISS VECTOR DATABASE
-# ==========================================
-
-print("\nCreating FAISS vector database...")
-
-vector_db = FAISS.from_documents(
-    documents=chunks,
-    embedding=embeddings
-)
-
-print("FAISS database created.")
+    return chunks
 
 
 # ==========================================
-# 7. SAVE FAISS DATABASE
+# CREATE EMBEDDINGS
 # ==========================================
 
-Path(VECTOR_DB_PATH).mkdir(
-    parents=True,
-    exist_ok=True
-)
+def create_embedding_model():
 
-vector_db.save_local(
-    VECTOR_DB_PATH
-)
+    print("Loading embedding model...")
 
-print("\n========================================")
-print("SUCCESS!")
-print("========================================")
+    embeddings = HuggingFaceEmbeddings(
+        model_name=EMBEDDING_MODEL,
+        encode_kwargs={
+            "normalize_embeddings": True
+        }
+    )
 
-print(
-    f"FAISS database saved at: "
-    f"{VECTOR_DB_PATH}"
-)
+    print("Embedding model loaded.")
 
-print(
-    f"Total chunks indexed: {len(chunks)}"
-)
+    return embeddings
+
+
+# ==========================================
+# STORE IN POSTGRESQL
+# ==========================================
+
+def store_chunks(chunks, embeddings):
+
+    conn = get_connection()
+
+    try:
+
+        cursor = conn.cursor()
+
+        # Remove previous RAG data
+        cursor.execute(
+            "TRUNCATE TABLE rag_chunks RESTART IDENTITY;"
+        )
+
+        print("Old RAG data cleared.")
+
+        for i, chunk in enumerate(chunks):
+
+            print(
+                f"Embedding chunk {i + 1}/{len(chunks)}"
+            )
+
+            embedding = embeddings.embed_query(
+                chunk.page_content
+            )
+
+            metadata = {
+                "content_type": chunk.metadata.get(
+                    "content_type",
+                    "dsa"
+                ),
+                "topic": chunk.metadata.get(
+                    "topic",
+                    "unknown"
+                ),
+                "source": chunk.metadata.get(
+                    "source",
+                    "unknown"
+                ),
+                "file_type": chunk.metadata.get(
+                    "file_type",
+                    "md"
+                ),
+                "chunk_id": chunk.metadata.get(
+                    "chunk_id",
+                    i
+                )
+            }
+
+            cursor.execute(
+                """
+                INSERT INTO rag_chunks
+                (
+                    content,
+                    metadata,
+                    embedding
+                )
+                VALUES (%s, %s, %s)
+                """,
+                (
+                    chunk.page_content,
+                    json.dumps(metadata),
+                    embedding
+                )
+            )
+
+        conn.commit()
+
+        print()
+        print("==========================================")
+        print("SUCCESS")
+        print("==========================================")
+        print(f"Stored {len(chunks)} chunks.")
+        print("Embeddings stored in PostgreSQL.")
+        print("FAISS is NOT being used.")
+
+        cursor.close()
+
+    except Exception as e:
+
+        conn.rollback()
+
+        print("Failed to store RAG data:")
+        print(e)
+
+    finally:
+
+        conn.close()
+
+
+# ==========================================
+# MAIN
+# ==========================================
+
+def main():
+
+    print()
+    print("==========================================")
+    print("DSA COACH - PostgreSQL RAG INGESTION")
+    print("==========================================")
+    print()
+
+    initialize_database()
+
+    documents = load_documents()
+
+    if not documents:
+        print("No markdown files found.")
+        return
+
+    chunks = create_chunks(documents)
+
+    embeddings = create_embedding_model()
+
+    store_chunks(
+        chunks,
+        embeddings
+    )
+
+
+if __name__ == "__main__":
+    main()
