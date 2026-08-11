@@ -13,3 +13,4 @@ sentence-transformers
 psycopg2-binary
 pgvector
 numpy
+torchvision
