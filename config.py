@@ -5,6 +5,11 @@ load_dotenv("key.env")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+if not GEMINI_API_KEY:
+    raise ValueError(
+        "GEMINI_API_KEY not found in key.env"
+    )
+
 DB_NAME = os.getenv("DB_NAME", "dsa_coach")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD")

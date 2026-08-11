@@ -124,7 +124,7 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
-from config import EMBEDDING_MODEL,TOP_K
+from config import EMBEDDING_MODEL,EMBEDDING_DIMENSION,TOP_K
 from database import get_connection
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -167,8 +167,8 @@ logger.setLevel(os.environ.get("RAG_LOG_LEVEL", "INFO"))
 # --------------------------------------------------------------------------
 # Constants
 # --------------------------------------------------------------------------
-EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
-EMBEDDING_DIM = 384
+EMBEDDING_MODEL_NAME = EMBEDDING_MODEL
+EMBEDDING_DIM = EMBEDDING_DIMENSION
 
 # BGE-family models recommend prefixing queries (not documents) with this
 # instruction to improve retrieval relevance.
