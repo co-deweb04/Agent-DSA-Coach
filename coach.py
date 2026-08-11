@@ -14,10 +14,10 @@ client = genai.Client(
 
 
 # ------------------------------------------------------------
-# Convert UI option to RAG mode
+# Convert Streamlit option to RAG mode
 # ------------------------------------------------------------
 
-def get_mode(option):
+def get_rag_mode(mode):
 
     mode_map = {
         "Learn DSA": "learn",
@@ -27,7 +27,7 @@ def get_mode(option):
         "Code Review": "code_review"
     }
 
-    return mode_map.get(option, "general")
+    return mode_map.get(mode, "general")
 
 
 # ------------------------------------------------------------
@@ -37,10 +37,11 @@ def get_mode(option):
 def get_response(question, mode, uploaded_code=None):
 
     # --------------------------------------------------------
-    # Convert Streamlit option to RAG mode
+    # Convert UI mode to RAG mode
     # --------------------------------------------------------
 
-    rag_mode = get_mode(mode)
+    rag_mode = get_rag_mode(mode)
+
 
     # --------------------------------------------------------
     # Retrieve relevant knowledge from RAG
@@ -49,10 +50,11 @@ def get_response(question, mode, uploaded_code=None):
     rag_result = retrieve_context(
         question=question,
         mode=rag_mode,
-        include_code=uploaded_code is not None
+        include_code=bool(uploaded_code)
     )
 
     context = rag_result.get("context", "")
+
 
     # --------------------------------------------------------
     # Add uploaded code if available
@@ -63,7 +65,63 @@ def get_response(question, mode, uploaded_code=None):
     if uploaded_code:
 
         code_section = f"""
-Student's uploaded code:
+## Student's uploaded code:
 
 {uploaded_code}
 """
+
+
+    # --------------------------------------------------------
+    # Build prompt
+    # --------------------------------------------------------
+
+    prompt = f"""
+You are a DSA Coach Agent.
+
+Your job is to help students learn and practice
+Data Structures and Algorithms.
+
+Mode: {mode}
+
+Relevant knowledge retrieved from the RAG system:
+{context}
+
+Student question:
+{question}
+
+{code_section}
+
+Instructions:
+
+- Explain concepts in simple and beginner-friendly language.
+- Use examples whenever useful.
+- Give hints instead of the complete answer in Hint mode.
+- Explain solutions step by step in Solution mode.
+- In Practice mode, provide an appropriate DSA problem.
+- In Code Review mode, review the student's uploaded code.
+- Identify errors, inefficient logic, and possible improvements.
+- Explain why the suggested improvements are useful.
+- If code is provided, refer to the student's actual code.
+- Use the provided RAG context when answering.
+- Do not invent information that conflicts with the provided context.
+- Keep explanations suitable for a student learning DSA.
+- Be clear and concise.
+"""
+
+
+    # --------------------------------------------------------
+    # Generate Gemini response
+    # --------------------------------------------------------
+
+    try:
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        return response.text
+
+    except Exception as e:
+
+        return f"Unable to generate a response: {e}"
