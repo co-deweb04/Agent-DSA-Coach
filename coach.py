@@ -1,39 +1,69 @@
 from google import genai
+
 from config import GEMINI_API_KEY
 from rag import retrieve_context
 
-client = genai.Client(api_key=GEMINI_API_KEY)
+
+# ------------------------------------------------------------
+# Gemini client
+# ------------------------------------------------------------
+
+client = genai.Client(
+    api_key=GEMINI_API_KEY
+)
 
 
-def get_response(question, mode):
+# ------------------------------------------------------------
+# Convert UI option to RAG mode
+# ------------------------------------------------------------
 
-    context = retrieve_context(question)
+def get_mode(option):
 
-    prompt = f"""
-You are a DSA Coach Agent.
+    mode_map = {
+        "Learn DSA": "learn",
+        "Practice": "practice",
+        "Get Hint": "hint",
+        "View Solution": "solution",
+        "Code Review": "code_review"
+    }
 
-Help the student learn Data Structures and Algorithms.
+    return mode_map.get(option, "general")
 
-Mode: {mode}
 
-Relevant knowledge:
-{context}
+# ------------------------------------------------------------
+# DSA Coach response
+# ------------------------------------------------------------
 
-Student question:
-{question}
+def get_response(question, mode, uploaded_code=None):
 
-Instructions:
-- Explain concepts in simple language.
-- Give hints instead of the complete answer in Hint mode.
-- Explain solutions step by step in Solution mode.
-- Review code and suggest improvements in Code Review mode.
-- Use the provided context when answering.
-- Do not invent information that conflicts with the provided context.
-"""
+    # --------------------------------------------------------
+    # Convert Streamlit option to RAG mode
+    # --------------------------------------------------------
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
+    rag_mode = get_mode(mode)
+
+    # --------------------------------------------------------
+    # Retrieve relevant knowledge from RAG
+    # --------------------------------------------------------
+
+    rag_result = retrieve_context(
+        question=question,
+        mode=rag_mode,
+        include_code=uploaded_code is not None
     )
 
-    return response.text
+    context = rag_result.get("context", "")
+
+    # --------------------------------------------------------
+    # Add uploaded code if available
+    # --------------------------------------------------------
+
+    code_section = ""
+
+    if uploaded_code:
+
+        code_section = f"""
+Student's uploaded code:
+
+{uploaded_code}
+"""
