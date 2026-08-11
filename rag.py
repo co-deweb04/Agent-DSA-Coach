@@ -1,838 +1,178 @@
-# ============================================================
-# rag.py
-# ============================================================
-#
-# RAG Retrieval Layer for DSA Coach Agent
-#
-# Responsibilities:
-#
-# 1. Load the embedding model
-# 2. Connect to PostgreSQL
-# 3. Convert user query into an embedding
-# 4. Perform semantic search using pgvector
-# 5. Apply metadata filters
-# 6. Retrieve DSA knowledge
-# 7. Retrieve LeetCode questions
-# 8. Retrieve student Python / Notebook code
-# 9. Build context for the LLM
-#
-# ============================================================
-
-
-import json
-import psycopg2
-
-from langchain_huggingface import HuggingFaceEmbeddings
-
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
-# ------------------------------------------------------------
-# PostgreSQL configuration
-# ------------------------------------------------------------
-
-DB_CONFIG = {
-    "host": "localhost",
-    "database": "dsa_coach",
-    "user": "postgres",
-    "password": "YOUR_PASSWORD",
-    "port": 5432
-}
-
-
-# ------------------------------------------------------------
-# Embedding model
-# ------------------------------------------------------------
-
-EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-
-
-# ------------------------------------------------------------
-# Number of documents to retrieve
-# ------------------------------------------------------------
-
-DEFAULT_K = 5
-
-
-# ============================================================
-# DSA RAG CLASS
-# ============================================================
-
-class DSA_RAG:
-    """
-    Retrieval-Augmented Generation retrieval layer
-    for the DSA Coach Agent.
-
-    This class retrieves relevant information from
-    PostgreSQL + pgvector.
-
-    It can retrieve:
-
-    - DSA notes
-    - DSA stories
-    - DSA descriptions
-    - LeetCode questions
-    - Student .py files
-    - Student .ipynb files
-    """
-
-    # ========================================================
-    # INITIALIZATION
-    # ========================================================
-
-    def __init__(
-        self,
-        db_config=DB_CONFIG
-    ):
-
-        # ----------------------------------------------------
-        # Store database configuration
-        # ----------------------------------------------------
-
-        self.db_config = db_config
-
-        # ----------------------------------------------------
-        # Load embedding model
-        # ----------------------------------------------------
-
-        print("Loading embedding model...")
-
-        self.embedder = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-
-            encode_kwargs={
-                # Normalize vectors for cosine similarity
-                "normalize_embeddings": True
-            }
-        )
-
-        print("Embedding model loaded successfully.")
-
-        # ----------------------------------------------------
-        # Test PostgreSQL connection
-        # ----------------------------------------------------
-
-        self.connection = self.get_connection()
-
-        print("PostgreSQL connected successfully.")
-
-
-    # ========================================================
-    # DATABASE CONNECTION
-    # ========================================================
-
-    def get_connection(self):
-
-        """
-        Create a PostgreSQL connection.
-        """
-
-        return psycopg2.connect(
-            **self.db_config
-        )
-
-
-    # ========================================================
-    # CREATE QUERY EMBEDDING
-    # ========================================================
-
-    def create_query_embedding(
-        self,
-        question: str
-    ):
-
-        """
-        Convert the student's question into
-        an embedding vector.
-        """
-
-        if not question or not question.strip():
-
-            raise ValueError(
-                "Question cannot be empty."
-            )
-
-        # Create embedding for the query
-        embedding = self.embedder.embed_query(
-            question
-        )
-
-        return embedding
-
-
-    # ========================================================
-    # GENERIC SEMANTIC SEARCH
-    # ========================================================
-
-    def semantic_search(
-        self,
-        question: str,
-        k: int = DEFAULT_K,
-        content_type: str = None,
-        topic: str = None,
-        difficulty: str = None,
-        user_id: int = None,
-        file_type: str = None
-    ):
-        """
-        Perform semantic similarity search using pgvector.
-
-        Optional filters:
-
-        content_type:
-            dsa
-            story
-            description
-            leetcode
-            student_code
-
-        topic:
-            Array
-            Stack
-            Queue
-            Tree
-            Graph
-            etc.
-
-        difficulty:
-            Easy
-            Medium
-            Hard
-
-        user_id:
-            Used for retrieving a student's own code.
-
-        file_type:
-            py
-            ipynb
-        """
-
-        # ----------------------------------------------------
-        # Create query embedding
-        # ----------------------------------------------------
-
-        query_embedding = self.create_query_embedding(
-            question
-        )
-
-
-        # ----------------------------------------------------
-        # Base SQL query
-        # ----------------------------------------------------
-
-        sql = """
-            SELECT
-                id,
-                content,
-                metadata,
-                1 - (embedding <=> %s::vector) AS similarity
-
-            FROM rag_chunks
-
-            WHERE 1 = 1
-        """
-
-
-        # Parameters passed to PostgreSQL
-        parameters = [
-            json.dumps(query_embedding)
-        ]
-
-
-        # ----------------------------------------------------
-        # Content type filter
-        # ----------------------------------------------------
-
-        if content_type:
-
-            sql += """
-                AND metadata->>'content_type' = %s
-            """
-
-            parameters.append(
-                content_type
-            )
-
-
-        # ----------------------------------------------------
-        # Topic filter
-        # ----------------------------------------------------
-
-        if topic:
-
-            sql += """
-                AND LOWER(metadata->>'topic') = LOWER(%s)
-            """
-
-            parameters.append(
-                topic
-            )
-
-
-        # ----------------------------------------------------
-        # Difficulty filter
-        # ----------------------------------------------------
-
-        if difficulty:
-
-            sql += """
-                AND LOWER(metadata->>'difficulty') = LOWER(%s)
-            """
-
-            parameters.append(
-                difficulty
-            )
-
-
-        # ----------------------------------------------------
-        # User filter
-        # ----------------------------------------------------
-
-        if user_id:
-
-            sql += """
-                AND (
-                    metadata->>'user_id' = %s
-                    OR metadata->>'user_id' IS NULL
-                )
-            """
-
-            parameters.append(
-                str(user_id)
-            )
-
-
-        # ----------------------------------------------------
-        # File type filter
-        # ----------------------------------------------------
-
-        if file_type:
-
-            sql += """
-                AND metadata->>'file_type' = %s
-            """
-
-            parameters.append(
-                file_type
-            )
-
-
-        # ----------------------------------------------------
-        # Similarity ordering
-        # ----------------------------------------------------
-
-        sql += """
-            ORDER BY embedding <=> %s::vector
-            LIMIT %s
-        """
-
-
-        # Add embedding again for ORDER BY
-        parameters.append(
-            json.dumps(query_embedding)
-        )
-
-        parameters.append(
-            k
-        )
-
-
-        # ----------------------------------------------------
-        # Execute query
-        # ----------------------------------------------------
-
-        connection = self.get_connection()
-
-        cursor = connection.cursor()
-
-        try:
-
-            cursor.execute(
-                sql,
-                parameters
-            )
-
-            rows = cursor.fetchall()
-
-        finally:
-
-            cursor.close()
-            connection.close()
-
-
-        # ----------------------------------------------------
-        # Convert database rows to dictionaries
-        # ----------------------------------------------------
-
-        documents = []
-
-        for row in rows:
-
-            chunk_id = row[0]
-            content = row[1]
-            metadata = row[2]
-            similarity = float(row[3])
-
-            documents.append(
-                {
-                    "id": chunk_id,
-                    "content": content,
-                    "metadata": metadata,
-                    "similarity": similarity
-                }
-            )
-
-
-        return documents
-
-
-    # ========================================================
-    # RETRIEVE DSA KNOWLEDGE
-    # ========================================================
-
-    def retrieve_dsa_knowledge(
-        self,
-        question: str,
-        k: int = 5,
-        topic: str = None
-    ):
-        """
-        Retrieve DSA theory, notes and explanations.
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            topic=topic
-        )
-
-
-    # ========================================================
-    # RETRIEVE STORIES
-    # ========================================================
-
-    def retrieve_stories(
-        self,
-        question: str,
-        k: int = 2,
-        topic: str = None
-    ):
-        """
-        Retrieve real-world stories or analogies
-        related to the DSA question.
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            content_type="story",
-
-            topic=topic
-        )
-
-
-    # ========================================================
-    # RETRIEVE DESCRIPTIONS
-    # ========================================================
-
-    def retrieve_descriptions(
-        self,
-        question: str,
-        k: int = 2,
-        topic: str = None
-    ):
-        """
-        Retrieve concept descriptions.
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            content_type="description",
-
-            topic=topic
-        )
-
-
-    # ========================================================
-    # RETRIEVE LEETCODE QUESTIONS
-    # ========================================================
-
-    def retrieve_leetcode(
-        self,
-        question: str,
-        difficulty: str = None,
-        topic: str = None,
-        k: int = 3
-    ):
-        """
-        Retrieve relevant LeetCode-style questions.
-
-        Example:
-
-        difficulty = "Medium"
-        topic = "Sliding Window"
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            content_type="leetcode",
-
-            topic=topic,
-
-            difficulty=difficulty
-        )
-
-
-    # ========================================================
-    # RETRIEVE STUDENT PYTHON CODE
-    # ========================================================
-
-    def retrieve_python_code(
-        self,
-        question: str,
-        user_id: int,
-        k: int = 3
-    ):
-        """
-        Retrieve student's .py files.
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            content_type="student_code",
-
-            user_id=user_id,
-
-            file_type="py"
-        )
-
-
-    # ========================================================
-    # RETRIEVE STUDENT NOTEBOOK CODE
-    # ========================================================
-
-    def retrieve_notebook_code(
-        self,
-        question: str,
-        user_id: int,
-        k: int = 3
-    ):
-        """
-        Retrieve student's .ipynb files.
-        """
-
-        return self.semantic_search(
-
-            question=question,
-
-            k=k,
-
-            content_type="student_code",
-
-            user_id=user_id,
-
-            file_type="ipynb"
-        )
-
-
-    # ========================================================
-    # BUILD DOCUMENT TEXT
-    # ========================================================
-
-    def format_documents(
-        self,
-        documents
-    ):
-        """
-        Convert retrieved documents into readable
-        context for the LLM.
-        """
-
-        if not documents:
-
-            return (
-                "No relevant information was found "
-                "in the knowledge base."
-            )
-
-
-        context_parts = []
-
-
-        for document in documents:
-
-            metadata = document.get(
-                "metadata",
-                {}
-            )
-
-            source = metadata.get(
-                "source",
-                "Unknown"
-            )
-
-            topic = metadata.get(
-                "topic",
-                "Unknown"
-            )
-
-            content_type = metadata.get(
-                "content_type",
-                "Unknown"
-            )
-
-            difficulty = metadata.get(
-                "difficulty",
-                "N/A"
-            )
-
-            similarity = document.get(
-                "similarity",
-                0
-            )
-
-
-            context_parts.append(
-                f"""
-Source: {source}
-Topic: {topic}
-Type: {content_type}
-Difficulty: {difficulty}
-Similarity: {similarity:.3f}
-
-Content:
-{document['content']}
-""".strip()
-            )
-
-
-        return "\n\n---\n\n".join(
-            context_parts
-        )
-
-
-    # ========================================================
-    # MAIN RAG RETRIEVAL
-    # ========================================================
-
+# Truncate the block if necessary to respect the character budget
+                    remaining_budget = max_chars - total_len
+                    if remaining_budget > 100:
+                        pieces.append(block[:remaining_budget] + "\n[Context Truncated]")
+                    break
+
+                pieces.append(block)
+                total_len += len(block)
+
+            if truncated:
+                break
+
+        return "\n".join(pieces).strip()
+
+    # ----------------------------------------------------------------
+    # High-level pipeline entrypoint
+    # ----------------------------------------------------------------
     def retrieve_context(
         self,
         question: str,
-        k: int = 5,
-        topic: str = None,
-        difficulty: str = None,
-        user_id: int = None,
+        mode: str = "general",
+        topic: Optional[str] = None,
+        difficulty: Optional[str] = None,
+        user_id: Optional[str] = None,
         include_code: bool = False,
+        k: Optional[int] = None,
         include_leetcode: bool = True,
-        include_stories: bool = True
-    ):
-        """
-        Main retrieval function used by coach.py.
+        include_stories: bool = True,
+    ) -> Dict[str, Any]:
+        """Main interface for `coach.py`. Coordinates retrieval, filtering,
+        reranking, deduplication, and formatting into a final payload."""
+        
+        # 1. Input validation & mode normalization
+        q = (question or "").strip()
+        if not q:
+            return {
+                "context": "",
+                "documents": [],
+                "intent": "GENERAL",
+                "sources": [],
+                "retrieval_stats": {
+                    "total_candidates_retrieved": 0,
+                    "after_threshold": 0,
+                    "after_dedup": 0,
+                    "final_selected": 0,
+                },
+            }
 
-        This function creates a complete RAG context
-        for the DSA Coach.
-        """
+        mode = mode.lower() if mode and mode.lower() in VALID_MODES else "general"
+        
+        # Backward compatibility override for chunk sizing
+        if k is not None and k > 0:
+            self.config.max_context_chunks = k
 
-        if not question or not question.strip():
+        # 2. Determine intent
+        intent = MODE_TO_INTENT.get(mode) or self.detect_intent(q)
 
-            return (
-                "No question was provided."
-            )
+        # 3. Create query embedding
+        query_embedding = self.create_query_embedding(q)
 
-
-        all_documents = []
-
-
-        # ====================================================
-        # 1. RETRIEVE DSA KNOWLEDGE
-        # ====================================================
-
-        dsa_documents = self.retrieve_dsa_knowledge(
-
-            question=question,
-
-            k=k,
-
-            topic=topic
-        )
-
-        all_documents.extend(
-            dsa_documents
-        )
-
-
-        # ====================================================
-        # 2. RETRIEVE STORIES
-        # ====================================================
-
-        if include_stories:
-
-            story_documents = self.retrieve_stories(
-
-                question=question,
-
-                k=2,
-
-                topic=topic
-            )
-
-            all_documents.extend(
-                story_documents
-            )
-
-
-        # ====================================================
-        # 3. RETRIEVE LEETCODE
-        # ====================================================
-
-        if include_leetcode:
-
-            leetcode_documents = self.retrieve_leetcode(
-
-                question=question,
-
-                difficulty=difficulty,
-
-                topic=topic,
-
-                k=2
-            )
-
-            all_documents.extend(
-                leetcode_documents
-            )
-
-
-        # ====================================================
-        # 4. RETRIEVE STUDENT CODE
-        # ====================================================
-
+        # 4. Candidate Retrieval based on intent
+        active_categories = set(INTENT_ACTIVE_CATEGORIES.get(intent, VALID_CONTENT_TYPES))
+        
+        # Respect backward-compatibility flags
+        if not include_leetcode and "leetcode" in active_categories:
+            active_categories.remove("leetcode")
+        if not include_stories and "story" in active_categories:
+            active_categories.remove("story")
         if include_code and user_id:
+            active_categories.add("student_code")
 
-            # ----------------------------------------------
-            # Python files
-            # ----------------------------------------------
+        candidates: List[Dict[str, Any]] = []
 
-            python_documents = self.retrieve_python_code(
-
-                question=question,
-
-                user_id=user_id,
-
-                k=2
+        if "dsa" in active_categories:
+            candidates.extend(self.retrieve_dsa_knowledge(query_embedding, topic=topic))
+        if "story" in active_categories:
+            candidates.extend(self.retrieve_stories(query_embedding, topic=topic))
+        if "description" in active_categories:
+            candidates.extend(self.retrieve_descriptions(query_embedding, topic=topic))
+        if "leetcode" in active_categories:
+            candidates.extend(
+                self.retrieve_leetcode(query_embedding, topic=topic, difficulty=difficulty)
+            )
+        if "student_code" in active_categories and user_id:
+            candidates.extend(
+                self.retrieve_python_code(query_embedding, user_id=user_id, topic=topic)
+            )
+            candidates.extend(
+                self.retrieve_notebook_code(query_embedding, user_id=user_id, topic=topic)
             )
 
-            all_documents.extend(
-                python_documents
-            )
+        total_retrieved = len(candidates)
 
+        # 5. Quality Gate: Apply similarity threshold
+        filtered = self.apply_similarity_threshold(candidates)
+        after_threshold_count = len(filtered)
 
-            # ----------------------------------------------
-            # Jupyter notebooks
-            # ----------------------------------------------
+        # 6. Deduplicate candidates
+        deduped = self.deduplicate_documents(filtered)
+        after_dedup_count = len(deduped)
 
-            notebook_documents = self.retrieve_notebook_code(
-
-                question=question,
-
-                user_id=user_id,
-
-                k=2
-            )
-
-            all_documents.extend(
-                notebook_documents
-            )
-
-
-        # ====================================================
-        # SORT BY SIMILARITY
-        # ====================================================
-
-        all_documents.sort(
-
-            key=lambda x: x.get(
-                "similarity",
-                0
-            ),
-
-            reverse=True
+        # 7. Rerank remaining candidates
+        reranked = self.rerank_documents(
+            deduped, intent=intent, topic=topic, difficulty=difficulty
         )
 
+        # 8. Category-balanced selection
+        selected_docs = self.select_balanced_context(reranked, intent=intent)
 
-        # ====================================================
-        # BUILD FINAL CONTEXT
-        # ====================================================
+        # 9. Format structured context text
+        context_text = self.format_documents(selected_docs)
 
-        context = self.format_documents(
-            all_documents
-        )
+        # 10. Extract metadata sources
+        sources = [
+            {
+                "id": doc.get("id"),
+                "content_type": (doc.get("metadata") or {}).get("content_type"),
+                "title": (doc.get("metadata") or {}).get("title"),
+                "source": (doc.get("metadata") or {}).get("source"),
+                "topic": (doc.get("metadata") or {}).get("topic"),
+                "similarity": round(doc.get("similarity", 0.0), 4),
+            }
+            for doc in selected_docs
+        ]
+
+        return {
+            "context": context_text,
+            "documents": selected_docs,
+            "intent": intent,
+            "sources": sources,
+            "retrieval_stats": {
+                "total_candidates_retrieved": total_retrieved,
+                "after_threshold": after_threshold_count,
+                "after_dedup": after_dedup_count,
+                "final_selected": len(selected_docs),
+            },
+        }
 
 
-        return context
+# ==========================================================================
+# Module-level instance & public wrapper function
+# ==========================================================================
+_rag_instance: Optional[DSA_RAG] = None
 
 
-# ============================================================
-# CREATE GLOBAL RAG INSTANCE
-# ============================================================
+def get_rag_instance() -> DSA_RAG:
+    """Returns a module-level singleton instance of DSA_RAG to prevent
+    re-instantiating and re-loading the sentence transformer on every query."""
+    global _rag_instance
+    if _rag_instance is None:
+        _rag_instance = DSA_RAG()
+    return _rag_instance
 
-rag = DSA_RAG()
-
-
-# ============================================================
-# FUNCTION USED BY coach.py
-# ============================================================
 
 def retrieve_context(
     question: str,
-    k: int = 5,
-    topic: str = None,
-    difficulty: str = None,
-    user_id: int = None,
+    mode: str = "general",
+    topic: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    user_id: Optional[str] = None,
     include_code: bool = False,
+    k: Optional[int] = None,
     include_leetcode: bool = True,
-    include_stories: bool = True
-):
-    """
-    Simple function that can be imported
-    directly into coach.py.
-    """
-
+    include_stories: bool = True,
+) -> Dict[str, Any]:
+    """Module-level wrapper around the default `DSA_RAG` singleton."""
+    rag = get_rag_instance()
     return rag.retrieve_context(
-
         question=question,
-
-        k=k,
-
+        mode=mode,
         topic=topic,
-
         difficulty=difficulty,
-
         user_id=user_id,
-
         include_code=include_code,
-
+        k=k,
         include_leetcode=include_leetcode,
-
-        include_stories=include_stories
+        include_stories=include_stories,
     )
