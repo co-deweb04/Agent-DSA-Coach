@@ -6,14 +6,11 @@ from config import (
     DB_USER,
     DB_PASSWORD,
     DB_HOST,
-    DB_PORT,
-    EMBEDDING_DIMENSION
+    DB_PORT
 )
 
 
 def get_connection():
-    """Create a PostgreSQL connection."""
-
     conn = psycopg2.connect(
         dbname=DB_NAME,
         user=DB_USER,
@@ -27,60 +24,69 @@ def get_connection():
     return conn
 
 
-def initialize_database():
-    """Create the pgvector extension and RAG table."""
+def save_search_history(
+    question,
+    mode,
+    response,
+    user_id="default_user"
+):
+    """
+    Save a student's question and the coach's response.
+    """
 
-    conn = psycopg2.connect(
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        host=DB_HOST,
-        port=DB_PORT
-    )
+    conn = get_connection()
 
     try:
-        cursor = conn.cursor()
+        with conn.cursor() as cur:
 
-        # Enable pgvector
-        cursor.execute(
-            "CREATE EXTENSION IF NOT EXISTS vector;"
-        )
-
-        # Create table expected by rag.py
-        cursor.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS rag_chunks (
-                id SERIAL PRIMARY KEY,
-                content TEXT NOT NULL,
-                metadata JSONB,
-                embedding VECTOR({EMBEDDING_DIMENSION})
-            );
-            """
-        )
-
-        # Cosine similarity index
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS rag_chunks_embedding_idx
-            ON rag_chunks
-            USING hnsw (embedding vector_cosine_ops);
-            """
-        )
+            cur.execute(
+                """
+                INSERT INTO search_history
+                (user_id, question, mode, response)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    question,
+                    mode,
+                    response
+                )
+            )
 
         conn.commit()
 
-        print("PostgreSQL + pgvector initialized successfully.")
-        print("rag_chunks table is ready.")
-
-    except Exception as e:
-        conn.rollback()
-        print("Database initialization failed:")
-        print(e)
-
     finally:
-        cursor.close()
         conn.close()
 
 
-if __name__ == "__main__":
-    initialize_database()
+def get_search_history(
+    user_id="default_user",
+    limit=20
+):
+    """
+    Get the student's previous searches.
+    """
+
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                SELECT question, mode, response, created_at
+                FROM search_history
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (
+                    user_id,
+                    limit
+                )
+            )
+
+            return cur.fetchall()
+
+    finally:
+        conn.close()

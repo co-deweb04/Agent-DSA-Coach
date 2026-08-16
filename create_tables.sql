@@ -1,23 +1,19 @@
-CREATE TABLE IF NOT EXISTS conversations (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TABLE IF NOT EXISTS messages (
+-- RAG knowledge
+CREATE TABLE IF NOT EXISTS rag_chunks (
     id SERIAL PRIMARY KEY,
-    conversation_id INTEGER REFERENCES conversations(id)
-        ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    metadata JSONB,
+    embedding VECTOR(384)
 );
 
+-- Student search / conversation history
 CREATE TABLE IF NOT EXISTS search_history (
     id SERIAL PRIMARY KEY,
-    conversation_id INTEGER REFERENCES conversations(id)
-        ON DELETE CASCADE,
-    query TEXT NOT NULL,
-    searched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    user_id VARCHAR(100),
+    question TEXT NOT NULL,
+    mode VARCHAR(50),
+    response TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
