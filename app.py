@@ -2,6 +2,7 @@ import json
 import streamlit as st
 
 from coach import get_response
+from database import initialize_database
 
 
 # =====================================
@@ -13,7 +14,7 @@ st.set_page_config(
     page_icon="🧠"
 )
 
-
+initialize_database()
 # =====================================
 # SESSION STATE
 # =====================================
