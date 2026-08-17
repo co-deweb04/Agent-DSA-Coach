@@ -2,7 +2,14 @@ import json
 import streamlit as st
 
 from coach import get_response
-from database import initialize_database
+
+from database import (
+    get_connection,
+    create_conversation,
+    get_conversations,
+    get_messages,
+    save_message
+)
 
 
 # =====================================
@@ -11,10 +18,11 @@ from database import initialize_database
 
 st.set_page_config(
     page_title="DSA Coach",
-    page_icon="🧠"
+    page_icon="🧠",
+    layout="wide"
 )
 
-initialize_database()
+
 # =====================================
 # SESSION STATE
 # =====================================
@@ -22,48 +30,116 @@ initialize_database()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-
-if "chat_started" not in st.session_state:
-    st.session_state.chat_started = False
-
-
-# =====================================
-# TITLE
-# =====================================
-
-st.title("🧠 DSA Coach Agent")
-
-st.write(
-    "Your AI-powered assistant for learning "
-    "and practicing Data Structures and Algorithms."
-)
+if "conversation_id" not in st.session_state:
+    st.session_state.conversation_id = None
 
 
 # =====================================
 # SIDEBAR
 # =====================================
 
-st.sidebar.title("DSA Coach")
+with st.sidebar:
 
-option = st.sidebar.selectbox(
-    "Choose an option",
-    [
-        "Learn DSA",
-        "Practice",
-        "Get Hint",
-        "View Solution",
-        "Code Review"
-    ]
+    st.title("🧠 DSA Coach")
+
+    # -----------------------------
+    # NEW CHAT
+    # -----------------------------
+
+    if st.button(
+        "＋ New Chat",
+        use_container_width=True
+    ):
+
+        st.session_state.messages = []
+
+        st.session_state.conversation_id = None
+
+        st.rerun()
+
+    st.divider()
+
+    # -----------------------------
+    # MODE
+    # -----------------------------
+
+    option = st.selectbox(
+        "Choose an option",
+        [
+            "Learn DSA",
+            "Practice",
+            "Get Hint",
+            "View Solution",
+            "Code Review"
+        ]
+    )
+
+    st.divider()
+
+    # -----------------------------
+    # CHAT HISTORY
+    # -----------------------------
+
+    st.subheader("💬 Chat History")
+
+    conversations = get_conversations()
+
+    if not conversations:
+
+        st.caption("No previous chats yet.")
+
+    else:
+
+        for conversation_id, title in conversations:
+
+            if st.button(
+                title,
+                key=f"chat_{conversation_id}",
+                use_container_width=True
+            ):
+
+                # Select conversation
+                st.session_state.conversation_id = (
+                    conversation_id
+                )
+
+                # Load messages
+                db_messages = get_messages(
+                    conversation_id
+                )
+
+                st.session_state.messages = [
+                    {
+                        "role": role,
+                        "content": content
+                    }
+                    for role, content in db_messages
+                ]
+
+                st.rerun()
+
+
+# =====================================
+# MAIN TITLE
+# =====================================
+
+st.title("🧠 DSA Coach Agent")
+
+st.caption(
+    "Your AI-powered assistant for learning "
+    "and practicing Data Structures and Algorithms."
 )
 
 
 # =====================================
-# DISPLAY OLD MESSAGES
+# DISPLAY CHAT HISTORY
 # =====================================
 
 for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
+    with st.chat_message(
+        message["role"]
+    ):
 
         st.markdown(
             message["content"]
@@ -71,207 +147,237 @@ for message in st.session_state.messages:
 
 
 # =====================================
-# FILE UPLOAD
+# CHAT INPUT
 # =====================================
 
-uploaded_file = None
-
-if option == "Code Review":
-
-    uploaded_file = st.file_uploader(
-        "Upload your Python file",
-        type=["py", "ipynb"]
-    )
+prompt = st.chat_input(
+    "Ask anything about DSA...",
+    accept_file=True,
+    file_type=["py", "ipynb"]
+)
 
 
 # =====================================
-# INITIAL QUESTION
+# WHEN USER SENDS A MESSAGE
 # =====================================
 
-if not st.session_state.chat_started:
+if prompt:
 
-    question = st.text_area(
-        "Ask your DSA question:",
-        placeholder="Example: Explain binary search"
-    )
+    # ---------------------------------
+    # GET QUESTION
+    # ---------------------------------
 
-    if st.button("Ask Coach"):
+    question = prompt.text.strip()
 
-        if not question:
+
+    # ---------------------------------
+    # GET UPLOADED FILE
+    # ---------------------------------
+
+    student_code = None
+
+    if prompt.files:
+
+        uploaded_file = prompt.files[0]
+
+        # Python file
+        if uploaded_file.name.endswith(".py"):
+
+            student_code = (
+                uploaded_file
+                .getvalue()
+                .decode(
+                    "utf-8",
+                    errors="ignore"
+                )
+            )
+
+        # Jupyter Notebook
+        elif uploaded_file.name.endswith(".ipynb"):
+
+            notebook = json.loads(
+                uploaded_file
+                .getvalue()
+                .decode(
+                    "utf-8",
+                    errors="ignore"
+                )
+            )
+
+            code_parts = []
+
+            for cell in notebook.get(
+                "cells",
+                []
+            ):
+
+                if cell.get(
+                    "cell_type"
+                ) == "code":
+
+                    source = cell.get(
+                        "source",
+                        []
+                    )
+
+                    code_parts.append(
+                        "".join(source)
+                    )
+
+            student_code = "\n\n".join(
+                code_parts
+            )
+
+
+    # ---------------------------------
+    # MAKE SURE QUESTION EXISTS
+    # ---------------------------------
+
+    if not question:
+
+        if student_code:
+
+            question = (
+                "Please review the uploaded code."
+            )
+
+        else:
 
             st.warning(
                 "Please enter a question."
             )
 
-        else:
-
-            student_code = None
-
-            # Read uploaded Python file
-            if uploaded_file:
-
-                if uploaded_file.name.endswith(".py"):
-
-                    student_code = (
-                        uploaded_file
-                        .getvalue()
-                        .decode(
-                            "utf-8",
-                            errors="ignore"
-                        )
-                    )
-
-                # Read Jupyter Notebook
-                elif uploaded_file.name.endswith(".ipynb"):
-
-                    notebook = json.loads(
-                        uploaded_file
-                        .getvalue()
-                        .decode(
-                            "utf-8",
-                            errors="ignore"
-                        )
-                    )
-
-                    code_parts = []
-
-                    for cell in notebook.get(
-                        "cells",
-                        []
-                    ):
-
-                        if cell.get(
-                            "cell_type"
-                        ) == "code":
-
-                            source = cell.get(
-                                "source",
-                                []
-                            )
-
-                            code_parts.append(
-                                "".join(source)
-                            )
-
-                    student_code = (
-                        "\n\n".join(
-                            code_parts
-                        )
-                    )
-
-            # Store user message
-            st.session_state.messages.append(
-                {
-                    "role": "user",
-                    "content": question
-                }
-            )
-
-            with st.spinner(
-                "DSA Coach is thinking..."
-            ):
-
-                response = get_response(
-                    question,
-                    option,
-                    student_code=student_code
-                )
-
-            # Store assistant response
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": response
-                }
-            )
-
-            st.session_state.chat_started = True
-
-            st.rerun()
+            st.stop()
 
 
-# =====================================
-# FOLLOW-UP QUESTION
-# =====================================
+    # =================================
+    # CREATE NEW CONVERSATION
+    # =================================
 
-else:
+    if st.session_state.conversation_id is None:
 
-    st.subheader(
-        "💬 Ask a follow-up question"
+        # Use question as chat title
+        title = question.strip()
+
+        if len(title) > 40:
+
+            title = title[:40] + "..."
+
+        conversation_id = create_conversation(
+            title
+        )
+
+        st.session_state.conversation_id = (
+            conversation_id
+        )
+
+
+    else:
+
+        conversation_id = (
+            st.session_state.conversation_id
+        )
+
+
+    # =================================
+    # BUILD PREVIOUS CONVERSATION
+    # =================================
+    #
+    # IMPORTANT:
+    # Build this BEFORE adding the
+    # current question.
+    #
+    # This prevents Gemini from
+    # receiving the current question
+    # twice.
+    # =================================
+
+    conversation_history = ""
+
+    for message in (
+        st.session_state.messages
+    ):
+
+        conversation_history += (
+            message["role"].upper()
+            + ": "
+            + message["content"]
+            + "\n\n"
+        )
+
+
+    # =================================
+    # DISPLAY USER MESSAGE
+    # =================================
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": question
+        }
     )
 
-    follow_up = st.text_area(
-        "Continue the conversation:",
-        placeholder=(
-            "Example: Why is the time "
-            "complexity O(log n)?"
-        ),
-        key="follow_up_question"
+    with st.chat_message("user"):
+
+        st.markdown(question)
+
+        if prompt.files:
+
+            st.caption(
+                f"📎 {prompt.files[0].name}"
+            )
+
+
+    # =================================
+    # SAVE USER MESSAGE
+    # =================================
+
+    save_message(
+        conversation_id,
+        "user",
+        question
     )
 
-    if st.button("Ask Follow-up"):
 
-        if not follow_up:
+    # =================================
+    # GET AI RESPONSE
+    # =================================
 
-            st.warning(
-                "Please enter a follow-up question."
-            )
+    with st.chat_message("assistant"):
 
-        else:
+        with st.spinner(
+            "DSA Coach is thinking..."
+        ):
 
-            # Build conversation history
-            conversation_history = ""
-
-            for message in (
-                st.session_state.messages
-            ):
-
-                conversation_history += (
-                    message["role"].upper()
-                    + ": "
-                    + message["content"]
-                    + "\n\n"
-                )
-
-            # Store user message
-            st.session_state.messages.append(
-                {
-                    "role": "user",
-                    "content": follow_up
-                }
-            )
-
-            with st.spinner(
-                "DSA Coach is thinking..."
-            ):
-
-                response = get_response(
-                    follow_up,
-                    option,
+            response = get_response(
+                question=question,
+                mode=option,
+                conversation_history=(
                     conversation_history
-                )
-
-            # Store response
-            st.session_state.messages.append(
-                {
-                    "role": "assistant",
-                    "content": response
-                }
+                ),
+                student_code=student_code
             )
 
-            st.rerun()
+        st.markdown(response)
 
 
-# =====================================
-# NEW CHAT
-# =====================================
+    # =================================
+    # SAVE AI RESPONSE
+    # =================================
 
-if st.session_state.chat_started:
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": response
+        }
+    )
 
-    if st.sidebar.button("🗑️ New Chat"):
+    save_message(
+        conversation_id,
+        "assistant",
+        response
+    )
 
-        st.session_state.messages = []
-
-        st.session_state.chat_started = False
-
-        st.rerun()
+    # Refresh sidebar so the new
+    # conversation appears immediately
+    st.rerun()

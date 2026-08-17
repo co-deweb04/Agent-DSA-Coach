@@ -124,20 +124,17 @@ Current student question:
 
 Instructions:
 
-- Explain concepts in simple language.
-- Use examples when useful.
-- In Learn DSA mode, teach step by step.
-- In Practice mode, guide the student
-  without immediately revealing the answer.
-- In Get Hint mode, provide hints only.
-- In View Solution mode, explain the
-  solution step by step.
-- Maintain the context of the previous
-  conversation.
-- Answer the current question directly.
-- Use the retrieved knowledge when relevant.
-- Do not invent information that conflicts
-  with the retrieved context.
+- Answer ONLY the student's current question.
+- Do not repeat the entire previous explanation.
+- Use the previous conversation only to understand context.
+- If the question is a follow-up, answer only that specific follow-up.
+- Keep the answer focused and concise.
+- Explain more only if the student asks for more detail.
+- Do not provide the complete solution unless the student asks for it.
+- In Get Hint mode, give only a hint.
+- In Practice mode, guide the student without immediately giving the answer.
+- In View Solution mode, provide the complete solution.
+- In Code Review mode, focus only on the code-related question.
 """
 
     response = client.models.generate_content(
