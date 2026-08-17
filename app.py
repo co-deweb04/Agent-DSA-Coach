@@ -4,12 +4,14 @@ import streamlit as st
 from coach import get_response
 
 from database import (
-    get_connection,
+    initialize_database,
     create_conversation,
     get_conversations,
     get_messages,
     save_message
 )
+
+initialize_database()
 
 
 # =====================================
