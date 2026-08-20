@@ -1,17 +1,3 @@
-Yes. Now that you have provided the **actual agent files**, I can match the README to your implementation instead of guessing.
-
-Your `agents/` folder is implementing a **specialized multi-agent workflow** with:
-
-* `router.py` → decides which agent should handle the request
-* `learning_agent.py` → teaches DSA concepts
-* `practice_agent.py` → provides practice problems
-* `hint_agent.py` → gives guided hints
-* `solution_agent.py` → provides complete solutions
-* `code_review_agent.py` → reviews student code using RAG
-* `critic_agent.py` → verifies the generated answer and controls the reasoning/retry loop
-
-Below is the **updated README section/content specifically based on the code you provided**, using the **What → Why → How** format.
-
 # 🧠 DSA Coach Agent
 
 An AI-powered **Data Structures and Algorithms learning, practice, code-review, and assessment assistant** built using Python, Streamlit, Gemini, PostgreSQL, pgvector, RAG, and a specialized multi-agent architecture.
@@ -34,32 +20,44 @@ It uses specialized agents for different student requirements and combines them 
 
 # 📌 Table of Contents
 
-* [1. Project Overview](#1-project-overview)
-* [2. What is DSA Coach Agent?](#2-what-is-dsa-coach-agent)
-* [3. Why was it developed?](#3-why-was-it-developed)
-* [4. How does it work?](#4-how-does-it-work)
-* [5. ](#5-qualification-requirements)
-* [6. Agent-Based Architecture](#6-agent-based-architecture)
-* [7. Agents Folder](#7-agents-folder)
-* [8. Router Agent](#8-router-agent)
-* [9. Learning Agent](#9-learning-agent)
-* [10. Practice Agent](#10-practice-agent)
-* [11. Hint Agent](#11-hint-agent)
-* [12. Solution Agent](#12-solution-agent)
-* [13. Code Review Agent](#13-code-review-agent)
-* [14. Critic Agent](#14-critic-agent)
-* [15. Reasoning and Verification Loop](#15-reasoning-and-verification-loop)
-* [16. Rubric Generator and Evaluation](#16-rubric-generator-and-evaluation)
-* [17. Retrieval-Augmented Generation](#17-retrieval-augmented-generation)
-* [18. Student Code Review Workflow](#18-student-code-review-workflow)
-* [19. Streamlit UI](#19-streamlit-ui)
-* [20. Database](#20-database)
-* [21. Project Structure](#21-project-structure)
-* [22. Technology Stack](#22-technology-stack)
-* [23. Installation](#23-installation)
-* [24. Configuration](#24-configuration)
-* [25. Running the Application](#25-running-the-application)
-* [26. Future Improvements](#26-future-improvements)
+* 1. Project Overview
+* 2. What is DSA Coach Agent?
+* 3. Why was it developed?
+* 4. How does it work?
+* 5. Agent Implementation
+* 6. Agent-Based Architecture
+* 7. Agents Folder
+* 8. Router Agent
+* 9. Learning Agent
+* 10. Practice Agent
+* 11. Hint Agent
+* 12. Solution Agent
+* 13. Code Review Agent
+* 14. Critic Agent
+* 15. Reasoning and Verification Loop
+* 16. Graph and Agent Orchestration
+* 17. Shared State
+* 18. Conversation Management
+* 19. Data Organization
+* 20. LeetCode Dataset
+* 21. Student Uploads
+* 22. Rubric Generator and Evaluation
+* 23. Retrieval-Augmented Generation
+* 24. Student Code Review Workflow
+* 25. Streamlit UI
+* 26. Database
+* 27. Containerization
+* 28. Dockerfile
+* 29. .dockerignore
+* 30. docker-compose.yml
+* 31. Complete Project Structure
+* 32. Technology Stack
+* 33. Installation
+* 34. Configuration
+* 35. Running the Application
+* 36. Overall System Architecture
+* 37. Future Improvements
+* 38. Conclusion
 
 ---
 
@@ -84,6 +82,8 @@ It supports:
 * Retrieval-Augmented Generation
 * Automated answer verification
 * Student conversation history
+
+The system combines an LLM with RAG and multiple specialized agents to provide different types of assistance depending on the student's request.
 
 ---
 
@@ -134,42 +134,47 @@ Therefore, DSA Coach uses **specialized agents**, where each agent has a clearly
 The application follows an agent-based workflow:
 
 ```text
-                     Student
-                        │
-                        ▼
-                  Streamlit UI
-                        │
-                        ▼
-                   User Request
-                        │
-                        ▼
-                  Router Agent
-                        │
-       ┌────────────────┼────────────────┐
-       │                │                │
-       ▼                ▼                ▼
-   Learning          Practice          Hint
-    Agent             Agent           Agent
-       │                │                │
-       ├────────────────┼────────────────┤
-       │                │                │
-       ▼                ▼                ▼
-   Solution        Code Review       Other Flow
-    Agent             Agent
-       │                │
-       └────────────┬───┘
-                    ▼
-                Draft Answer
-                    │
-                    ▼
-               Critic Agent
-                    │
-             ┌──────┴──────┐
-             │             │
-            PASS          RETRY
-             │             │
-             ▼             ▼
-        Final Answer   Regenerate
+Student
+   │
+   ▼
+Streamlit UI
+   │
+   ▼
+Shared State
+   │
+   ▼
+Graph / Orchestrator
+   │
+   ▼
+Router
+   │
+   ├── Learning Agent
+   ├── Practice Agent
+   ├── Hint Agent
+   ├── Solution Agent
+   └── Code Review Agent
+              │
+              ▼
+             RAG
+              │
+              ▼
+         Relevant Context
+              │
+              ▼
+          Gemini LLM
+              │
+              ▼
+        Draft Response
+              │
+              ▼
+         Critic Agent
+              │
+        ┌─────┴─────┐
+        │           │
+       PASS        RETRY
+        │           │
+        ▼           ▼
+   Final Answer  Regenerate
 ```
 
 This provides a controlled multi-agent workflow.
@@ -185,6 +190,12 @@ DSA Coach Agent is an AI tutor that helps students understand DSA concepts and i
 The system uses Gemini as the language model and RAG to provide relevant project-specific knowledge.
 
 The specialized agent layer determines **what kind of help the student needs** and selects the appropriate agent.
+
+It combines:
+
+AI + RAG + Specialized Agents + Database + UI
+
+to create an interactive learning environment.
 
 ---
 
@@ -239,12 +250,28 @@ Students often struggle with:
 
 ## Why an AI Agent?
 
-An AI agent can dynamically decide what type of assistance is appropriate.
+A single LLM prompt cannot easily enforce different behaviors for all these situations. An AI agent can dynamically decide what type of assistance is appropriate.
 
 Instead of providing the answer immediately, the system can behave like a tutor:
 
 ```text
-Learn → Practice → Hint → Attempt → Review → Improve
+Learning Agent
+→ Explain the concept.
+
+Practice Agent
+→ Give a problem without solving it.
+
+Hint Agent
+→ Give guidance without revealing the solution.
+
+Solution Agent
+→ Provide the complete solution.
+
+Code Review Agent
+→ Analyze the student's actual code.
+
+Critic Agent
+→ Verify the generated response.
 ```
 
 This makes the learning process more interactive.
@@ -265,36 +292,54 @@ Streamlit
 State
    │
    ▼
+Graph
+   │
+   ▼
 Router
    │
-   ├── Learning Agent
-   ├── Practice Agent
-   ├── Hint Agent
-   ├── Solution Agent
-   └── Code Review Agent
-              │
-              ▼
-             RAG
-              │
-              ▼
-        Relevant Context
-              │
-              ▼
-          Gemini LLM
-              │
-              ▼
-         Draft Response
-              │
-              ▼
-         Critic Agent
-              │
-       ┌──────┴──────┐
-       │             │
-      PASS          RETRY
-       │             │
-       ▼             ▼
-   Final Answer    New Draft
+   ▼
+Specialized Agent
+   │
+   ▼
+RAG Retrieval
+   │
+   ▼
+Gemini
+   │
+   ▼
+Draft Response
+   │
+   ▼
+Critic
+   │
+   ├── PASS
+   │
+   └── RETRY
+        │
+        ▼
+     Regenerate
+        │
+        ▼
+      Critic
+        │
+        ▼
+   Final Response
 ```
+The workflow can also integrate:
+
+Rubric Generator
+        ↓
+Evaluator
+        ↓
+Student Feedback
+
+and:
+
+Conversation
+        ↓
+PostgreSQL
+
+for persistent learning history
 
 ---
 
@@ -304,9 +349,17 @@ The project contains multiple specialized agents under:
 
 ```text
 agents/
+├── __init__.py
+├── router.py
+├── learning_agent.py
+├── practice_agent.py
+├── hint_agent.py
+├── solution_agent.py
+├── code_review_agent.py
+└── critic_agent.py
 ```
 
-The agents have separate responsibilities.
+Each agent has a specific responsibility.
 
 The architecture therefore follows an **agent-oriented design** instead of placing all functionality inside one LLM function.
 
@@ -360,7 +413,41 @@ This state-based design makes the agents suitable for orchestration through a gr
 
 ## What?
 
-The `agents` package contains specialized components responsible for different DSA tasks.
+The project follows a specialized multi-agent architecture.
+
+                    DSA Coach
+                        │
+                      Router
+                        │
+       ┌────────────────┼────────────────┐
+       │                │                │
+       ▼                ▼                ▼
+    Learning         Practice          Hint
+     Agent            Agent           Agent
+       │                │                │
+       └────────────────┼────────────────┘
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+              ▼                   ▼
+       Solution Agent      Code Review Agent
+              │                   │
+              └─────────┬─────────┘
+                        │
+                        ▼
+                   Draft Answer
+                        │
+                        ▼
+                   Critic Agent
+                        │
+                 ┌──────┴──────┐
+                 │             │
+                PASS          RETRY
+                 │             │
+                 ▼             ▼
+             Final Answer   Regenerate
+
+The architecture separates responsibilities and makes individual agents easier to modify and test.
 
 ---
 
@@ -402,6 +489,7 @@ An agent reads the information it needs and returns an updated state.
 ---
 
 # 7. Agents Folder
+## What?
 
 The agent components are organized inside:
 
@@ -409,7 +497,7 @@ The agent components are organized inside:
 agents/
 ```
 
-The folder contains specialized agents such as:
+The agents/ directory contains the specialized AI agents and routing logic:
 
 ```text
 agents/
@@ -425,6 +513,23 @@ agents/
 ```
 
 Additional agent components such as the rubric/evaluation workflow can also be integrated into this architecture.
+
+Why?
+
+Separating agents provides:
+
+Modularity
+Clear responsibilities
+Easier debugging
+Easier testing
+Better prompt control
+Easier future expansion
+
+How?
+
+Each agent receives the workflow state, performs its specialized task, and returns an updated state.
+
+The Router determines which agent should execute.
 
 ---
 
@@ -474,21 +579,25 @@ The router first checks the sidebar mode.
 
 The sidebar mode has the highest priority.
 
-For example:
+The mapping includes:
 
 ```python
 mode_mapping = {
     "learn": "learn",
+    "learn dsa": "learn",
     "practice": "practice",
     "hint": "hint",
+    "get hint": "hint",
     "solution": "solution",
+    "view solution": "solution",
     "code_review": "code_review",
+    "code review": "code_review",
 }
 ```
 
 If a valid mode is supplied, the router immediately returns the corresponding intent.
 
-If there is no valid mode, the router performs automatic keyword-based detection.
+If there is no valid mode, the router performs automatic keyword-based intent detection.
 
 For example:
 
@@ -524,13 +633,13 @@ Its responsibility is to **teach DSA concepts**.
 
 A student learning a concept needs an explanation rather than a coding problem or a complete solution.
 
-The Learning Agent is specifically instructed to behave as a teacher.
+The Learning Agent is explicitly instructed to behave as a teacher.
 
 ---
 
 ## How?
 
-The agent extracts:
+The agent retrieves:
 
 ```python
 question
@@ -556,11 +665,11 @@ retrieve_context(
 )
 ```
 
-This means the Learning Agent can retrieve educational material and stories.
+This means the Learning Agent can retrieve educational knowledge and stories.
 
 The retrieved context is then supplied to Gemini.
 
-The prompt instructs the model to:
+The Gemini prompt instructs the agent to:
 
 * Explain intuition first
 * Give examples
@@ -594,7 +703,7 @@ Its responsibility is to provide the student with a DSA problem to solve.
 
 Practice requires a different behavior from learning.
 
-The agent should challenge the student rather than immediately explaining the solution.
+The agent should challenge the student rather than immediately explaining the solution therefore avoids giving complete solutions.
 
 ---
 
@@ -619,13 +728,14 @@ It specifically enables LeetCode/problem retrieval.
 
 The prompt instructs the agent to:
 
-* Give one suitable problem
+* Give one suitable DSA problem
 * Match the requested topic
 * Mention difficulty
 * Explain the problem
 * Provide examples
 * Provide constraints
 * Avoid complete solutions
+* Avoid revealing the algorithm.
 * Ask the student to attempt the problem
 
 The expected structure is:
@@ -709,7 +819,7 @@ This creates a guided-learning experience.
 
 ## Why?
 
-A student may first attempt a problem, request a hint, and eventually ask for the full solution.
+A student may first attempt a problem, request a hint, and eventually need the complete explanation.
 
 The Solution Agent is responsible for providing that complete explanation.
 
@@ -845,7 +955,7 @@ The retrieved context is then passed to Gemini along with the student's code.
 
 `critic_agent.py` implements the verification component of the system.
 
-It acts as a **Critic Agent** that evaluates the draft generated by another agent.
+It acts as a **Critic Agent** that verifies the draft generated by another agent.
 
 ---
 
@@ -915,6 +1025,13 @@ RETRY
 Generate another draft
 ```
 
+The maximum number of loops is controlled by:
+
+```python
+MAX_REASONING_LOOPS
+```
+This prevents unlimited retries.
+
 ---
 
 # 15. Reasoning and Verification Loop
@@ -931,7 +1048,7 @@ It can evaluate the draft and decide whether another generation attempt is requi
 
 ## Why?
 
-The verification loop improves reliability.
+The verification loop improves reliability of LLM-generated responses.
 
 For example:
 
@@ -997,7 +1114,6 @@ The system also uses:
 ```python
 MAX_REASONING_LOOPS
 ```
-
 to prevent unlimited retries.
 
 The implementation therefore has a safety boundary:
@@ -1011,11 +1127,356 @@ This prevents the system from continuously regenerating responses.
 
 ---
 
-# 16. Rubric Generator and Evaluation
+# 16. Graph and Agent Orchestration
+## What?
+
+graph.py defines the workflow connecting the different agents.
+
+It acts as the orchestration layer of the multi-agent system.
+
+## Why?
+
+A multi-agent application needs to control:
+
+Which agent runs
+In what order agents execute
+What state is passed between agents
+When the critic runs
+When a retry happens
+When the workflow ends
+
+graph.py provides a centralized place for this workflow.
+
+## How?
+
+The conceptual workflow is:
+
+                 User Request
+                      │
+                      ▼
+                   Router
+                      │
+          ┌───────────┼───────────┐
+          │           │           │
+          ▼           ▼           ▼
+       Learning    Practice      Hint
+        Agent       Agent        Agent
+          │           │           │
+          └───────────┼───────────┘
+                      │
+             ┌────────┴────────┐
+             │                 │
+             ▼                 ▼
+       Solution Agent    Code Review Agent
+             │                 │
+             └────────┬────────┘
+                      │
+                      ▼
+                 Draft Response
+                      │
+                      ▼
+                 Critic Agent
+                      │
+                ┌─────┴─────┐
+                │           │
+              PASS         RETRY
+                │           │
+                ▼           ▼
+             Final       Regenerate
+
+The graph therefore acts as the central control layer.
+
+---
+
+# 17. Shared State
+## What?
+
+state.py defines the shared state used by the agent workflow.
+
+The state stores information required by different agents.
+
+Typical values include:
+
+question
+mode
+intent
+topic
+difficulty
+user_id
+student_code
+draft_response
+critique
+needs_retry
+loop_count
+
+## Why?
+
+Different agents need different information.
+
+For example:
+
+Router
+→ question + mode
+
+
+Learning Agent
+→ question + topic + difficulty
+
+
+Code Review Agent
+→ question + student_code + topic
+
+
+Critic Agent
+→ question + draft_response + loop_count
+
+A shared state structure makes communication easier.
+
+## How?
+
+The state moves through the workflow:
+
+User
+ ↓
+State
+ ↓
+Router
+ ↓
+Agent
+ ↓
+Updated State
+ ↓
+Critic
+ ↓
+Updated State
+ ↓
+Final Response
+
+This allows agents to remain independent while participating in one workflow.
+
+---
+
+# 18. Conversation Management
+## What?
+
+conversation.py manages persistent conversations and messages.
+
+Typical operations include:
+
+```python
+create_conversation()
+save_message()
+get_messages()
+get_conversations()
+```
+
+## Why?
+
+Conversation persistence allows students to:
+
+Continue previous discussions
+Review previous questions
+Revisit explanations
+Continue solving problems
+Maintain learning history
+
+This makes DSA Coach more useful as a long-term learning assistant.
+
+## How?
+
+A conversation can be created:
+
+```python
+conversation_id = create_conversation(
+    "Two Sum Discussion"
+)
+```
+A message can be stored:
+
+```python
+save_message(
+    conversation_id,
+    "user",
+    "Explain Two Sum"
+)
+```
+
+Messages can later be retrieved:
+
+```python
+get_messages(conversation_id)
+```
+
+The flow is:
+
+Student
+   ↓
+Question
+   ↓
+Agent Workflow
+   ↓
+Response
+   ↓
+conversation.py
+   ↓
+PostgreSQL
+
+---
+
+# 19. Data Organization
+## What?
+
+The data/ directory contains the knowledge sources used by the RAG pipeline.
+
+data/
+├── notes/
+├── stories/
+├── descriptions/
+└── leetcode.json
+
+## Why?
+
+Keeping all knowledge resources under one directory makes the project:
+
+Easier to maintain
+Easier to ingest
+Easier to expand
+Better organized
+
+Different types of knowledge can also be retrieved according to the agent's purpose.
+
+## How?
+
+The ingestion pipeline processes these resources.
+
+The general flow is:
+
+Data Files
+   ↓
+Document Processing
+   ↓
+Text Splitting
+   ↓
+Embeddings
+   ↓
+PostgreSQL + pgvector
+   ↓
+Semantic Retrieval
+   ↓
+Agents
+
+---
+
+# 20. LeetCode Dataset
+## What?
+
+data/leetcode.json contains structured DSA practice problems.
+
+A record may contain information such as:
+
+{
+    "title": "Two Sum",
+    "difficulty": "Easy",
+    "topic": "Array",
+    "description": "...",
+    "examples": [],
+    "constraints": []
+}
+
+The exact fields depend on the project's dataset.
+
+## Why?
+
+A structured problem dataset makes it easier to:
+
+Retrieve coding problems
+Filter by topic
+Filter by difficulty
+Generate practice questions
+Generate solutions
+Populate the RAG knowledge base
+
+## How?
+
+The ingestion pipeline can process the JSON file:
+
+leetcode.json
+      ↓
+Document
+      ↓
+Chunking
+      ↓
+BGE Embedding
+      ↓
+pgvector
+      ↓
+Semantic Retrieval
+      ↓
+Practice / Solution Agent
+
+The Practice Agent enables:
+
+```python
+include_leetcode=True
+```
+
+The Solution Agent also enables:
+
+```python
+include_leetcode=True
+```
+---
+
+# 21. Student Uploads
+## What?
+
+The uploads/ directory stores files submitted by students.
+
+uploads/
+├── py/
+└── ipynb/
+
+## Why?
+
+Students can submit DSA solutions in different formats.
+
+The project supports:
+
+Python source files
+Jupyter Notebook files
+
+Separating these formats makes file processing and organization easier.
+
+## How?
+
+The upload workflow is:
+
+Student Upload
+      ↓
+File Type Detection
+      ↓
+┌─────┴─────┐
+│           │
+.py        .ipynb
+│           │
+▼           ▼
+uploads/py  uploads/ipynb
+│           │
+└─────┬─────┘
+      ↓
+Student Code
+      ↓
+Code Review Agent
+---
+
+# 22. Rubric Generator and Evaluation
 
 ## What?
 
-The rubric/evaluation component provides structured assessment of student solutions.
+The project contains:
+
+rubric_generator.py
+evaluator.py
 
 The Rubric Generator creates criteria against which a student's code can be evaluated.
 
@@ -1078,17 +1539,17 @@ The Code Review Agent focuses on understanding and reviewing the student's code,
 
 ---
 
-# 17. Retrieval-Augmented Generation
+# 23. Retrieval-Augmented Generation
 
 ## What?
 
-RAG allows the agents to retrieve relevant information from the DSA knowledge base before generating their responses.
+RAG (Retrieval-Augmented Generation) allows the agents to retrieve relevant information from the DSA knowledge base before generating their responses.Instead of relying only on the LLM's internal knowledge.
 
 The project uses:
 
 * PostgreSQL
 * pgvector
-* BGE embeddings
+* BGE (BAAI General Embedding) embeddings
 * Semantic search
 
 ---
@@ -1117,7 +1578,7 @@ context = result.get("context", "")
 
 That context is then included in the Gemini prompt.
 
-For example:
+The general workflow is:
 
 ```text
 Question
@@ -1179,7 +1640,7 @@ This shows that the RAG layer is **agent-aware** rather than being used identica
 
 ---
 
-# 18. Student Code Review Workflow
+# 24. Student Code Review Workflow
 
 The complete code-review workflow is:
 
@@ -1202,10 +1663,10 @@ Retrieve Relevant Context
 Analyze Student Code
         │
         ▼
-Generate Draft Review
+Gemini
         │
         ▼
-Rubric / Evaluator
+Draft Review
         │
         ▼
 Critic Agent
@@ -1218,18 +1679,23 @@ Critic Agent
         Improved Review
               │
               ▼
-        Final Feedback
+        Evaluation
+              │
+              ▼
+        Student Feedback
 ```
 
 This makes code review an agent-based assessment workflow rather than a single prompt.
 
+The system can support both .py and .ipynb submissions.
+
 ---
 
-# 19. Streamlit UI
+# 25. Streamlit UI
 
 ## What?
 
-The Streamlit application provides the user interface.
+The Streamlit application provides the interactive user interface for DSA Coach.
 
 ---
 
@@ -1257,21 +1723,24 @@ The selected mode is placed into the state.
 
 The router gives explicit sidebar mode priority.
 
-Therefore:
+The flow is:
 
 ```text
-Sidebar Selection
-        ↓
+Streamlit
+    ↓
+Selected Mode
+    ↓
+State
+    ↓
 Router
-        ↓
-Correct Agent
+    ↓
+Specialized Agent
 ```
-
 This ensures predictable behavior.
 
 ---
 
-# 20. Database
+# 26. Database
 
 ## What?
 
@@ -1297,7 +1766,7 @@ The project requires persistent storage for:
 
 The RAG data is stored as vector embeddings.
 
-The embedding model used by the project is:
+The RAG pipeline generates embeddings using:
 
 ```text
 BAAI/bge-small-en-v1.5
@@ -1309,13 +1778,180 @@ with:
 Embedding Dimension = 384
 ```
 
-The retrieval layer searches these vectors to identify relevant knowledge.
+The embeddings are stored in PostgreSQL using pgvector.
+
+The retrieval process then performs semantic similarity search.
 
 ---
 
-# 21. Project Structure
+# 27. Containerization
+## What?
 
-The project is organized approximately as:
+The project supports containerized deployment using Docker.
+
+The main containerization files are:
+
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+## Why?
+
+Containerization provides:
+
+Reproducible environments
+Easier deployment
+Easier team collaboration
+Consistent dependencies
+Simplified service management
+
+## How?
+
+The application and database can run as separate services.
+
+Docker Compose
+      │
+ ┌────┴────┐
+ │         │
+ ▼         ▼
+App       DB
+ │         │
+ │      pgvector
+ │         │
+ └────┬────┘
+      │
+   Database
+
+---
+
+# 28. Dockerfile
+## What?
+
+The Dockerfile defines how to build the DSA Coach application image.
+
+## Why?
+
+The Dockerfile packages:
+
+Python runtime
+Project files
+Dependencies
+Application configuration
+
+into a reproducible environment.
+
+This avoids environment differences between machines.
+
+## How?
+
+The typical build process is:
+
+Python Base Image
+       ↓
+Working Directory
+       ↓
+Copy requirements.txt
+       ↓
+Install Dependencies
+       ↓
+Copy Project Files
+       ↓
+Expose Port
+       ↓
+Start Streamlit
+
+The image can be built using:
+
+```bash
+docker build -t dsa-coach .
+```
+---
+
+# 29. .dockerignore
+## What?
+
+.dockerignore specifies files that should not be copied into the Docker build context.
+
+## Why?
+
+Excluding unnecessary files:
+
+-Reduces build size
+-Improves build speed
+-Keeps the image clean
+-Helps prevent sensitive configuration from being copied
+
+## How?
+
+Typical entries include:
+
+.myenv
+.venv
+__pycache__
+*.pyc
+.env
+.git
+.gitignore
+uploads
+
+Docker will ignore these files when creating the build context.
+
+---
+
+# 30. docker-compose.yml
+## What?
+
+docker-compose.yml defines the services required by the project and how they communicate.
+
+The main services are:
+
+DSA Coach Application
+PostgreSQL + pgvector
+
+## Why?
+
+Docker Compose simplifies:
+
+-Service startup
+-Networking
+-Port management
+-Environment configuration
+-Database connectivity
+-Multi-container deployment
+
+It is particularly useful for the project's containerization requirement.
+
+## How?
+
+A typical setup can define:
+
+```YAML
+services:
+
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    depends_on:
+      - db
+
+
+  db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5432:5432"
+```
+
+The exact database credentials and environment variables should match the project's configuration.
+
+The services can be started using:
+
+```bash
+docker compose up --build
+```
+---
+
+# 31.📁 Project Structure
 
 ```text
 DSA-Coach-Agent/
@@ -1330,54 +1966,74 @@ DSA-Coach-Agent/
 │   ├── code_review_agent.py
 │   └── critic_agent.py
 │
+├── data/
+│   ├── notes/
+│   │   └── DSA knowledge files
+│   │
+│   ├── stories/
+│   │   └── DSA story-based explanations
+│   │
+│   ├── descriptions/
+│   │   └── DSA problem descriptions
+│   │
+│   └── leetcode.json
+│
+├── uploads/
+│   ├── py/
+│   │   └── Student Python files
+│   │
+│   └── ipynb/
+│       └── Student Jupyter Notebook files
+│
 ├── app.py
 ├── coach.py
+├── graph.py
+├── state.py
+├── conversation.py
 ├── rag.py
 ├── ingest.py
 ├── database.py
 ├── config.py
 ├── evaluator.py
 ├── rubric_generator.py
+│
 ├── create_tables.sql
 ├── requirements.txt
+├── Dockerfile
+├── .dockerignore
+├── docker-compose.yml
 ├── README.md
-├── .gitignore
-├── .env
-├── data/
-   └── notes/
-   ├── stories/
-   ├── leetcode.json
-   └── descriptions/
+└── .gitignore
 ```
+---
+
+# 32. Technology Stack
+
+| Technology         | Purpose                         |
+| ------------------ | ------------------------------- |
+| Python             | Main programming language       |
+| Streamlit          | Interactive user interface      |
+| Gemini             | LLM generation and verification |
+| Specialized Agents | Task-specific AI processing     |
+| Graph Workflow     | Agent orchestration             |
+| Shared State       | Agent communication             |
+| RAG                | Context retrieval               |
+| PostgreSQL         | Persistent database             |
+| pgvector           | Vector similarity search        |
+| BGE                | Text embeddings                 |
+| LangChain          | Document processing             |
+| Git/GitHub         | Version control                 |
+| Docker             | Containerization                |
+| Docker Compose     | Multi-service orchestration     |
+
 
 ---
 
-# 22. Technology Stack
-
-| Technology                 | Purpose                      |
-| -------------------------- | ---------------------------- |
-| Python                     | Main programming language    |
-| Streamlit                  | Interactive UI               |
-| Gemini                     | LLM generation and critique  |
-| Agent Architecture         | Specialized task processing  |
-| LangGraph-compatible State | Agent workflow orchestration |
-| RAG                        | Context retrieval            |
-| PostgreSQL                 | Persistent database          |
-| pgvector                   | Vector similarity search     |
-| BGE                        | Text embeddings              |
-| LangChain                  | Document processing          |
-| Git/GitHub                 | Version control              |
-| Docker                     | Containerization             |
-
----
-
-# 23. Installation
+# 33. Installation
 
 ## What?
 
 The project requires Python, PostgreSQL, pgvector, and the required Python packages.
-
----
 
 ## How?
 
@@ -1398,10 +2054,9 @@ Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
-
 ---
 
-# 24. Configuration
+# 34. Configuration
 
 Create a `.env` file in the project root.
 
@@ -1429,7 +2084,13 @@ to `.gitignore`.
 
 ---
 
-# 25. Running the Application
+# 35. Running the Application
+
+Activate the virtual environment:
+
+```bash
+.myenv\Scripts\activate
+```
 
 Start Streamlit:
 
@@ -1451,32 +2112,149 @@ Code Review
 
 and interact with the corresponding agent.
 
+Docker Execution
+
+Build and start the application:
+
+```bash
+docker compose up --build
+```
+
+This starts the configured application and database services.
+
 ---
 
-# 26. Future Improvements
+# 36. Overall System Architecture
+
+The complete DSA Coach Agent architecture is:
+
+                         ┌─────────────────────┐
+                         │       Student       │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │    Streamlit UI     │
+                         │       app.py        │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │      state.py       │
+                         │    Shared State     │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │      graph.py       │
+                         │ Agent Orchestration │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │     router.py       │
+                         │   Intent Routing    │
+                         └──────────┬──────────┘
+                                    │
+          ┌─────────────────────────┼─────────────────────────┐
+          │                         │                         │
+          ▼                         ▼                         ▼
+   Learning Agent            Practice Agent             Hint Agent
+          │                         │                         │
+          └─────────────────────────┼─────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                    ▼                               ▼
+             Solution Agent                 Code Review Agent
+                                                    │
+                                                    ▼
+                                              Student Code
+                                                    │
+                                           ┌────────┴────────┐
+                                           │                 │
+                                          .py              .ipynb
+                                           │                 │
+                                           └────────┬────────┘
+                                                    │
+                                                    ▼
+                                                   RAG
+                                                    │
+                    ┌───────────────────────────────┼──────────────────────┐
+                    │                               │                      │
+                    ▼                               ▼                      ▼
+                  Notes                          Stories             Descriptions
+                    │                               │                      │
+                    └───────────────────────────────┼──────────────────────┘
+                                                    │
+                                                    ▼
+                                             leetcode.json
+                                                    │
+                                                    ▼
+                                             BGE Embeddings
+                                                    │
+                                                    ▼
+                                          PostgreSQL + pgvector
+                                                    │
+                                                    ▼
+                                                  Gemini
+                                                    │
+                                                    ▼
+                                             Draft Response
+                                                    │
+                                                    ▼
+                                              Critic Agent
+                                                    │
+                                           ┌────────┴────────┐
+                                           │                 │
+                                         PASS              RETRY
+                                           │                 │
+                                           ▼                 ▼
+                                      Final Answer      Regenerate
+                                                             │
+                                                             └──► Critic
+
+                                                    │
+                                                    ▼
+                                             Rubric Generator
+                                                    │
+                                                    ▼
+                                                Evaluator
+                                                    │
+                                                    ▼
+                                             Student Feedback
+                                                    │
+                                                    ▼
+                                           conversation.py
+                                                    │
+                                                    ▼
+                                               PostgreSQL
+# 37. Future Improvements
 
 The current architecture can be extended with:
 
-* Full LangGraph state graph
 * More specialized agents
-* Advanced rubric evaluation
-* Automated test execution
+* More advanced graph workflows
+* Adaptive learning paths
+* Personalized difficulty
 * Student performance tracking
-* Adaptive difficulty
-* Personalized learning paths
+* Automated test execution
 * More programming languages
 * Instructor dashboard
 * Authentication
-* Docker Compose
-* Cloud deployment
+* Advanced rubric scoring
 * Automated agent evaluation
-* Better retry and verification strategies
+* Better notebook processing
+* Cloud deployment
+* CI/CD pipelines
+* Docker-based production deployment
+* More sophisticated reasoning strategies
 
 ---
 
-# 🏁 Conclusion
+# 38. Conclusion
 
-DSA Coach Agent is designed as an **agent-based AI learning and assessment system**.
+DSA Coach Agent is designed as an **agent-based AI learning and assessment platform** rather than a basic LLM chatbot.
 
 Its architecture separates different responsibilities into specialized agents:
 
@@ -1509,20 +2287,94 @@ Its architecture separates different responsibilities into specialized agents:
               ▼             ▼
         Final Answer    Regenerate
 ```
+It combines these agents with:
+
+```text
+RAG
++
+PostgreSQL
++
+pgvector
++
+Conversation Persistence
++
+Rubric Evaluation
++
+Streamlit
++
+Docker
+```
+The complete learning workflow can therefore be represented as:
+
+```text
+                     Student
+                        │
+                        ▼
+                       UI
+                        │
+                        ▼
+                      State
+                        │
+                        ▼
+                      Graph
+                        │
+                        ▼
+                     Router
+                        │
+                        ▼
+               Specialized Agent
+                        │
+                        ▼
+                      RAG
+                        │
+                        ▼
+                     Gemini
+                        │
+                        ▼
+                Draft Response
+                        │
+                        ▼
+                    Critic
+                        │
+                 ┌──────┴──────┐
+                 │             │
+               PASS          RETRY
+                 │             │
+                 ▼             ▼
+              Final        Regenerate
+                               │
+                               └──► Critic
+                        │
+                        ▼
+                Rubric / Evaluator
+                        │
+                        ▼
+                Student Feedback
+                        │
+                        ▼
+                 Conversation DB
+```
 
 The most important aspect of the architecture is that **different agents have different responsibilities and different RAG configurations**.
 
-The system therefore demonstrates:
+The system demonstrates:
 
-* Specialized agent implementation
+* Specialized multi-agent implementation
 * Intent-based routing
-* State-based agent communication
-* RAG integration
-* Code-review capability
-* Rubric-based evaluation
+* Shared agent state
+* Graph-based orchestration
+* RAG-based contextual generation
+* Student code analysis
+* Guided learning
+* Practice generation
+* Solution generation
 * Critic-based verification
-* Reasoning/retry loop
-* Persistent storage
-* Interactive UI
+* Reasoning and retry loops
+* Rubric-based evaluation
+* Conversation persistence
+* PostgreSQL and pgvector
+* Student .py and .ipynb uploads
+* Streamlit UI
+* Docker containerization
 
-This makes DSA Coach more than a basic LLM chatbot. It is an **agent-oriented DSA learning, practice, code-review, and assessment platform**.
+DSA Coach Agent functions as a complete **AI-powered DSA learning, practice, code-review, reasoning, and assessment platform.**
