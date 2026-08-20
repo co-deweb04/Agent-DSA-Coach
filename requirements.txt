@@ -1,0 +1,17 @@
+﻿streamlit
+google-genai
+python-dotenv
+
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-huggingface
+
+sentence-transformers
+
+psycopg2-binary
+pgvector
+numpy
+torchvision
+pypdf
