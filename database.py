@@ -41,18 +41,14 @@ def initialize_database():
 
         with conn.cursor() as cur:
 
-            # -----------------------------
             # Enable pgvector
-            # -----------------------------
 
             cur.execute(
                 "CREATE EXTENSION IF NOT EXISTS vector;"
             )
 
 
-            # -----------------------------
-            # RAG KNOWLEDGE TABLE
-            # -----------------------------
+            # RAG knowledge / embeddings
 
             cur.execute(
                 """
@@ -66,9 +62,7 @@ def initialize_database():
             )
 
 
-            # -----------------------------
-            # SEARCH HISTORY TABLE
-            # -----------------------------
+            # Search / conversation history
 
             cur.execute(
                 """
@@ -85,9 +79,7 @@ def initialize_database():
             )
 
 
-            # -----------------------------
-            # CONVERSATIONS TABLE
-            # -----------------------------
+            # Conversations
 
             cur.execute(
                 """
@@ -101,9 +93,7 @@ def initialize_database():
             )
 
 
-            # -----------------------------
-            # MESSAGES TABLE
-            # -----------------------------
+            # Conversation messages
 
             cur.execute(
                 """
@@ -118,6 +108,23 @@ def initialize_database():
 
                     content TEXT NOT NULL,
 
+                    created_at TIMESTAMP
+                        DEFAULT CURRENT_TIMESTAMP
+                );
+                """
+            )
+
+
+            # Student uploaded code
+
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS student_code (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(100),
+                    filename TEXT NOT NULL,
+                    file_type VARCHAR(20),
+                    content TEXT NOT NULL,
                     created_at TIMESTAMP
                         DEFAULT CURRENT_TIMESTAMP
                 );
@@ -142,10 +149,6 @@ def save_search_history(
     response,
     user_id="default_user"
 ):
-    """
-    Save a student's question and response
-    in the search_history table.
-    """
 
     conn = get_connection()
 
@@ -187,9 +190,6 @@ def get_search_history(
     user_id="default_user",
     limit=20
 ):
-    """
-    Get previous searches.
-    """
 
     conn = get_connection()
 
@@ -227,10 +227,6 @@ def get_search_history(
 # =====================================
 
 def create_conversation(title):
-    """
-    Create a new conversation
-    and return its ID.
-    """
 
     conn = get_connection()
 
@@ -263,10 +259,6 @@ def create_conversation(title):
 # =====================================
 
 def get_conversations():
-    """
-    Get all previous conversations
-    for the Streamlit sidebar.
-    """
 
     conn = get_connection()
 
@@ -300,10 +292,6 @@ def save_message(
     role,
     content
 ):
-    """
-    Save a user or assistant message
-    to a conversation.
-    """
 
     conn = get_connection()
 
@@ -340,10 +328,6 @@ def save_message(
 # =====================================
 
 def get_messages(conversation_id):
-    """
-    Get all messages belonging
-    to a particular conversation.
-    """
 
     conn = get_connection()
 
@@ -364,6 +348,49 @@ def get_messages(conversation_id):
             )
 
             return cur.fetchall()
+
+    finally:
+
+        conn.close()
+
+
+# =====================================
+# SAVE STUDENT CODE
+# =====================================
+
+def save_student_code(
+    filename,
+    file_type,
+    content,
+    user_id="default_user"
+):
+
+    conn = get_connection()
+
+    try:
+
+        with conn.cursor() as cur:
+
+            cur.execute(
+                """
+                INSERT INTO student_code
+                (
+                    user_id,
+                    filename,
+                    file_type,
+                    content
+                )
+                VALUES (%s, %s, %s, %s)
+                """,
+                (
+                    user_id,
+                    filename,
+                    file_type,
+                    content
+                )
+            )
+
+        conn.commit()
 
     finally:
 

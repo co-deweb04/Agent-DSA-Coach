@@ -8,8 +8,14 @@ from database import (
     create_conversation,
     get_conversations,
     get_messages,
-    save_message
+    save_message,
+    save_student_code
 )
+
+
+# =====================================
+# DATABASE INITIALIZATION
+# =====================================
 
 initialize_database()
 
@@ -44,9 +50,7 @@ with st.sidebar:
 
     st.title("🧠 DSA Coach")
 
-    # -----------------------------
-    # NEW CHAT
-    # -----------------------------
+    # New conversation
 
     if st.button(
         "＋ New Chat",
@@ -54,16 +58,14 @@ with st.sidebar:
     ):
 
         st.session_state.messages = []
-
         st.session_state.conversation_id = None
 
         st.rerun()
 
     st.divider()
 
-    # -----------------------------
-    # MODE
-    # -----------------------------
+
+    # Agent mode
 
     option = st.selectbox(
         "Choose an option",
@@ -78,9 +80,8 @@ with st.sidebar:
 
     st.divider()
 
-    # -----------------------------
-    # CHAT HISTORY
-    # -----------------------------
+
+    # Conversation history
 
     st.subheader("💬 Chat History")
 
@@ -100,12 +101,10 @@ with st.sidebar:
                 use_container_width=True
             ):
 
-                # Select conversation
                 st.session_state.conversation_id = (
                     conversation_id
                 )
 
-                # Load messages
                 db_messages = get_messages(
                     conversation_id
                 )
@@ -128,8 +127,20 @@ with st.sidebar:
 st.title("🧠 DSA Coach Agent")
 
 st.caption(
-    "Your AI-powered assistant for learning "
-    "and practicing Data Structures and Algorithms."
+    "Your AI-powered assistant for learning, "
+    "practicing, debugging and reviewing "
+    "Data Structures and Algorithms."
+)
+
+
+# =====================================
+# AGENT ARCHITECTURE
+# =====================================
+
+st.info(
+    "Powered by LangGraph Agent Orchestration, "
+    "RAG, Gemini, Code Evaluation and "
+    "a Critic-based verification loop."
 )
 
 
@@ -149,7 +160,7 @@ for message in st.session_state.messages:
 
 
 # =====================================
-# CHAT INPUT
+# CHAT INPUT + FILE UPLOAD
 # =====================================
 
 prompt = st.chat_input(
@@ -160,30 +171,36 @@ prompt = st.chat_input(
 
 
 # =====================================
-# WHEN USER SENDS A MESSAGE
+# PROCESS USER REQUEST
 # =====================================
 
 if prompt:
 
-    # ---------------------------------
-    # GET QUESTION
-    # ---------------------------------
+    # Get question
 
     question = prompt.text.strip()
 
 
-    # ---------------------------------
-    # GET UPLOADED FILE
-    # ---------------------------------
+    # =================================
+    # PROCESS STUDENT CODE
+    # =================================
 
     student_code = None
+    uploaded_filename = None
+    uploaded_file_type = None
 
     if prompt.files:
 
         uploaded_file = prompt.files[0]
 
+        uploaded_filename = uploaded_file.name
+
+
         # Python file
+
         if uploaded_file.name.endswith(".py"):
+
+            uploaded_file_type = "py"
 
             student_code = (
                 uploaded_file
@@ -194,8 +211,12 @@ if prompt:
                 )
             )
 
+
         # Jupyter Notebook
+
         elif uploaded_file.name.endswith(".ipynb"):
+
+            uploaded_file_type = "ipynb"
 
             notebook = json.loads(
                 uploaded_file
@@ -231,16 +252,29 @@ if prompt:
             )
 
 
-    # ---------------------------------
-    # MAKE SURE QUESTION EXISTS
-    # ---------------------------------
+        # Save uploaded code
+
+        if student_code:
+
+            save_student_code(
+                filename=uploaded_filename,
+                file_type=uploaded_file_type,
+                content=student_code
+            )
+
+
+    # =================================
+    # VALIDATE QUESTION
+    # =================================
 
     if not question:
 
         if student_code:
 
             question = (
-                "Please review the uploaded code."
+                "Please review the uploaded code "
+                "and identify correctness, "
+                "complexity, errors and improvements."
             )
 
         else:
@@ -253,12 +287,11 @@ if prompt:
 
 
     # =================================
-    # CREATE NEW CONVERSATION
+    # CREATE CONVERSATION
     # =================================
 
     if st.session_state.conversation_id is None:
 
-        # Use question as chat title
         title = question.strip()
 
         if len(title) > 40:
@@ -273,7 +306,6 @@ if prompt:
             conversation_id
         )
 
-
     else:
 
         conversation_id = (
@@ -282,23 +314,12 @@ if prompt:
 
 
     # =================================
-    # BUILD PREVIOUS CONVERSATION
-    # =================================
-    #
-    # IMPORTANT:
-    # Build this BEFORE adding the
-    # current question.
-    #
-    # This prevents Gemini from
-    # receiving the current question
-    # twice.
+    # BUILD CONVERSATION HISTORY
     # =================================
 
     conversation_history = ""
 
-    for message in (
-        st.session_state.messages
-    ):
+    for message in st.session_state.messages:
 
         conversation_history += (
             message["role"].upper()
@@ -323,10 +344,10 @@ if prompt:
 
         st.markdown(question)
 
-        if prompt.files:
+        if uploaded_filename:
 
             st.caption(
-                f"📎 {prompt.files[0].name}"
+                f"📎 {uploaded_filename}"
             )
 
 
@@ -342,13 +363,13 @@ if prompt:
 
 
     # =================================
-    # GET AI RESPONSE
+    # LANGGRAPH AGENT EXECUTION
     # =================================
 
     with st.chat_message("assistant"):
 
         with st.spinner(
-            "DSA Coach is thinking..."
+            "🧠 DSA Coach is thinking..."
         ):
 
             response = get_response(
@@ -380,6 +401,9 @@ if prompt:
         response
     )
 
-    # Refresh sidebar so the new
-    # conversation appears immediately
+
+    # =================================
+    # REFRESH APPLICATION
+    # =================================
+
     st.rerun()
